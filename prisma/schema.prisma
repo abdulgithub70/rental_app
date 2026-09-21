@@ -1,0 +1,278 @@
+// ============================================
+// Rental Property Platform — Prisma Schema
+// Database: PostgreSQL (Neon / Supabase)
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (pgbouncer, port 6543) — used at runtime
+  directUrl = env("DIRECT_URL")   // direct connection (port 5432) — used only for migrations
+}
+
+// ------------------ ENUMS ------------------
+
+enum UserRole {
+  OWNER
+  RENTER
+  FIELD_AGENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Locality {
+  SHAHEEN_BAGH
+  OKHLA
+  JAMIA_NAGAR
+  ABUL_FAZAL_ENCLAVE
+  BATLA_HOUSE
+  ZAKIR_NAGAR
+  OTHER
+}
+
+enum PropertyType {
+  ONE_BHK
+  TWO_BHK
+  THREE_BHK
+  STUDIO
+  PG
+  INDEPENDENT_FLOOR
+}
+
+enum PreferredTenant {
+  FAMILY
+  BACHELOR
+  STUDENT
+  ANY
+}
+
+enum VerificationStatus {
+  DRAFT
+  PENDING_VERIFICATION
+  CHANGES_REQUESTED
+  VERIFIED
+  REJECTED
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  RENTED
+  INACTIVE
+}
+
+enum TenancyStatus {
+  ACTIVE
+  ENDED
+}
+
+enum RentStatus {
+  PAID
+  DUE
+  OVERDUE
+}
+
+enum UtilityType {
+  ELECTRICITY
+  WATER
+}
+
+enum VisitStatus {
+  REQUESTED
+  AGENT_ASSIGNED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum DealStatus {
+  INTERESTED
+  NEGOTIATING
+  AGREEMENT
+  CLOSED
+  DROPPED
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+// ------------------ MODELS ------------------
+
+model User {
+  id                 String     @id @default(uuid())
+  name               String
+  phone              String     @unique // used as the login identifier (was "username")
+  email              String?
+  password           String     // bcrypt hashed
+  role               UserRole   @default(RENTER)
+  isActive           Boolean    @default(true)
+
+  kycDocUrl          String?    // Aadhaar/PAN upload — required before an Owner can list
+  coverageLocalities Locality[] // Field-agent only: localities they cover
+
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  // Relations
+  propertiesOwned    Property[]      @relation("OwnerProperties")
+  visitsRequested    VisitRequest[]  @relation("RenterVisits")
+  visitsAssigned     VisitRequest[]  @relation("AgentVisits")
+  dealsAsOwner       Deal[]          @relation("OwnerDeals")
+  dealsAsRenter      Deal[]          @relation("RenterDeals")
+}
+
+model Property {
+  id                  String              @id @default(uuid())
+  ownerId             String
+  owner               User                @relation("OwnerProperties", fields: [ownerId], references: [id])
+
+  locality            Locality
+  address             String
+  latitude            Float?
+  longitude           Float?
+
+  type                PropertyType
+  floor               String?
+  sizeSqft            Int?
+  furnishing          String?
+  monthlyRent         Int
+  securityDeposit     Int
+  preferredTenant     PreferredTenant     @default(ANY)
+  amenities           String[]
+
+  photoUrls           String[]
+  ownershipDocUrl     String?
+
+  verificationStatus  VerificationStatus  @default(DRAFT)
+  availabilityStatus  AvailabilityStatus  @default(AVAILABLE)
+  verificationNotes   String?
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  // Relations
+  tenancies           Tenancy[]
+  visitRequests       VisitRequest[]
+  deals               Deal[]
+}
+
+model Tenancy {
+  id               String         @id @default(uuid())
+  propertyId       String
+  property         Property       @relation(fields: [propertyId], references: [id])
+
+  tenantName       String
+  tenantPhone      String
+  tenantIdProofUrl String?
+
+  startDate        DateTime
+  endDate          DateTime?
+  monthlyRent      Int
+  depositPaid      Int
+
+  agreementDocUrl  String?
+  agreementExpiry  DateTime?
+
+  status           TenancyStatus  @default(ACTIVE)
+  createdAt        DateTime       @default(now())
+
+  // Relations
+  rentLedger       RentLedger[]
+  utilityReadings  UtilityReading[]
+  maintenanceReqs  MaintenanceRequest[]
+  deal             Deal?
+}
+
+model RentLedger {
+  id          String     @id @default(uuid())
+  tenancyId   String
+  tenancy     Tenancy    @relation(fields: [tenancyId], references: [id])
+
+  month       DateTime
+  amountDue   Int
+  amountPaid  Int        @default(0)
+  paidDate    DateTime?
+  status      RentStatus @default(DUE)
+
+  createdAt   DateTime   @default(now())
+
+  @@unique([tenancyId, month])
+}
+
+model UtilityReading {
+  id          String      @id @default(uuid())
+  tenancyId   String
+  tenancy     Tenancy     @relation(fields: [tenancyId], references: [id])
+
+  type        UtilityType
+  readingDate DateTime
+  value       Float?
+  billAmount  Int?
+
+  createdAt   DateTime    @default(now())
+}
+
+model VisitRequest {
+  id              String      @id @default(uuid())
+  propertyId      String
+  property        Property    @relation(fields: [propertyId], references: [id])
+
+  renterId        String
+  renter          User        @relation("RenterVisits", fields: [renterId], references: [id])
+
+  assignedAgentId String?
+  assignedAgent   User?       @relation("AgentVisits", fields: [assignedAgentId], references: [id])
+
+  requestedSlot   DateTime
+  confirmedSlot   DateTime?
+  status          VisitStatus @default(REQUESTED)
+  outcomeNotes    String?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Deal {
+  id                     String     @id @default(uuid())
+  propertyId             String
+  property               Property   @relation(fields: [propertyId], references: [id])
+
+  tenancyId              String?    @unique
+  tenancy                Tenancy?   @relation(fields: [tenancyId], references: [id])
+
+  ownerId                String
+  owner                  User       @relation("OwnerDeals", fields: [ownerId], references: [id])
+
+  renterId               String
+  renter                 User       @relation("RenterDeals", fields: [renterId], references: [id])
+
+  status                 DealStatus @default(INTERESTED)
+
+  commissionOwnerAmount  Int?
+  commissionRenterAmount Int?
+  commissionOwnerPaid    Boolean    @default(false)
+  commissionRenterPaid   Boolean    @default(false)
+
+  closedDate             DateTime?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+}
+
+model MaintenanceRequest {
+  id           String             @id @default(uuid())
+  tenancyId    String
+  tenancy      Tenancy            @relation(fields: [tenancyId], references: [id])
+
+  category     String
+  description  String
+  status       MaintenanceStatus  @default(OPEN)
+  raisedBy     String
+
+  createdAt    DateTime           @default(now())
+  resolvedDate DateTime?
+}
