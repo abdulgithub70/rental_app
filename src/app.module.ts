@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PropertiesModule } from './properties/properties.module';
+import { TenanciesModule } from './tenancies/tenancies.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { GeocodingModule } from './common/geocoding/geocoding.module';
@@ -21,6 +22,7 @@ import { GeocodingModule } from './common/geocoding/geocoding.module';
     AuthModule,
     UsersModule,
     PropertiesModule,
+    TenanciesModule,
     UploadsModule,
     GeocodingModule,
   ],

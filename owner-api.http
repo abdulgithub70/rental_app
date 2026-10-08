@@ -1,0 +1,105 @@
+### Owner API — manual smoke test
+### VS Code REST Client / JetBrains HTTP client. Sign in first, then the
+### token flows into every request below.
+
+@host = http://localhost:3000/api/v1
+
+# @name login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "phone": "9999999999", "password": "your-password" }
+
+###
+@token = {{login.response.body.access_token}}
+
+### Dashboard — portfolio counters + this month's rent position
+GET {{host}}/owner/dashboard
+Authorization: Bearer {{token}}
+
+### Tenant list — all
+GET {{host}}/owner/tenants?page=1&limit=15
+Authorization: Bearer {{token}}
+
+### Tenant list — only this month's unpaid
+GET {{host}}/owner/tenants?status=DUE
+Authorization: Bearer {{token}}
+
+### Tenant list — carried-over or past the due day
+GET {{host}}/owner/tenants?status=OVERDUE
+Authorization: Bearer {{token}}
+
+### Tenant list — search by name, phone or address
+GET {{host}}/owner/tenants?search=rizwan
+Authorization: Bearer {{token}}
+
+###
+@tenancyId = paste-a-tenancyId-from-the-list-above
+
+### Tenant detail
+GET {{host}}/owner/tenants/{{tenancyId}}
+Authorization: Bearer {{token}}
+
+### Rent ledger
+GET {{host}}/owner/tenants/{{tenancyId}}/rent-ledger?page=1&limit=12
+Authorization: Bearer {{token}}
+
+### Utility readings
+GET {{host}}/owner/tenants/{{tenancyId}}/utility-readings?utilityType=ELECTRICITY
+Authorization: Bearer {{token}}
+
+### Maintenance requests
+GET {{host}}/owner/tenants/{{tenancyId}}/maintenance?status=OPEN
+Authorization: Bearer {{token}}
+
+### Update a maintenance request
+PATCH {{host}}/owner/maintenance/paste-a-requestId
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "status": "IN_PROGRESS", "note": "Plumber visiting Saturday morning." }
+
+### Record this month's rent (empty body settles the full outstanding amount)
+PATCH {{host}}/tenancies/{{tenancyId}}/rent-ledger/paste-a-ledgerId/pay
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Add a utility reading
+POST {{host}}/tenancies/{{tenancyId}}/utility-readings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "utilityType": "ELECTRICITY", "value": 412, "billAmount": 3100 }
+
+### --- Authorization checks: all four must return 404, never 200 or 403 ---
+
+### Another owner's tenancy
+GET {{host}}/owner/tenants/paste-a-tenancyId-you-do-not-own
+Authorization: Bearer {{token}}
+
+### Your tenancy, someone else's ledger row
+PATCH {{host}}/tenancies/{{tenancyId}}/rent-ledger/paste-a-foreign-ledgerId/pay
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Another owner's maintenance request
+PATCH {{host}}/owner/maintenance/paste-a-foreign-requestId
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "status": "RESOLVED" }
+
+### A renter's token on an owner route — expect 403 from RolesGuard
+GET {{host}}/owner/dashboard
+Authorization: Bearer paste-a-renter-token
+
+### An illegal status move — expect 400 listing the allowed transitions
+PATCH {{host}}/owner/maintenance/paste-a-resolved-requestId
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "status": "OPEN" }
