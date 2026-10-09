@@ -77,6 +77,8 @@ enum RentStatus {
 enum UtilityType {
   ELECTRICITY
   WATER
+  GAS
+  OTHER
 }
 
 enum VisitStatus {
@@ -99,6 +101,7 @@ enum MaintenanceStatus {
   OPEN
   IN_PROGRESS
   RESOLVED
+  REJECTED
 }
 
 // ------------------ MODELS ------------------
@@ -124,6 +127,7 @@ model User {
   visitsAssigned     VisitRequest[]  @relation("AgentVisits")
   dealsAsOwner       Deal[]          @relation("OwnerDeals")
   dealsAsRenter      Deal[]          @relation("RenterDeals")
+  tenanciesAsTenant  Tenancy[]       @relation("TenantTenancies")
 }
 
 model Property {
@@ -165,6 +169,11 @@ model Tenancy {
   id               String         @id @default(uuid())
   propertyId       String
   property         Property       @relation(fields: [propertyId], references: [id])
+
+  // Nullable — a tenancy created directly by the Owner ("Mark as Rented")
+  // has no linked account; one created via a Renter accepting a Deal does.
+  tenantId         String?
+  tenant           User?          @relation("TenantTenancies", fields: [tenantId], references: [id])
 
   tenantName       String
   tenantPhone      String
@@ -253,6 +262,13 @@ model Deal {
 
   status                 DealStatus @default(INTERESTED)
 
+  // Terms captured at the moment the Owner extends the offer — may differ
+  // from the property's listed rent/deposit if negotiated.
+  offeredMonthlyRent     Int?
+  offeredSecurityDeposit Int?
+  offeredStartDate       DateTime?
+  offerNotes             String?
+
   commissionOwnerAmount  Int?
   commissionRenterAmount Int?
   commissionOwnerPaid    Boolean    @default(false)
@@ -268,8 +284,9 @@ model MaintenanceRequest {
   tenancyId    String
   tenancy      Tenancy            @relation(fields: [tenancyId], references: [id])
 
-  category     String
-  description  String
+  title        String
+  category     String?
+  description  String?
   status       MaintenanceStatus  @default(OPEN)
   raisedBy     String
 

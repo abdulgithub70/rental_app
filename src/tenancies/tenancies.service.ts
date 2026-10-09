@@ -56,6 +56,44 @@ export class TenanciesService {
     return tenancy;
   }
 
+  // ---- RENTER ----
+
+  // "My Rental" screen — every tenancy this renter is linked to (only ones
+  // created via accepting a Deal have tenantId set), newest first.
+  async getMineForRenter(renterId: string) {
+    return this.prisma.tenancy.findMany({
+      where: { tenantId: renterId },
+      include: {
+        property: {
+          include: { owner: { select: { id: true, name: true, phone: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getByIdForRenter(renterId: string, tenancyId: string) {
+    const tenancy = await this.prisma.tenancy.findUnique({
+      where: { id: tenancyId },
+      include: {
+        property: {
+          include: { owner: { select: { id: true, name: true, phone: true } } },
+        },
+        rentLedger: { orderBy: { month: 'desc' } },
+        utilityReadings: { orderBy: { readingDate: 'desc' } },
+      },
+    });
+    if (!tenancy) {
+      throw new NotFoundException('Tenancy not found');
+    }
+    if (tenancy.tenantId !== renterId) {
+      throw new ForbiddenException('You can only view your own tenancy');
+    }
+    return tenancy;
+  }
+
+  // ---- OWNER ----
+
   async getActiveForProperty(ownerId: string, propertyId: string): Promise<Tenancy | null> {
     await this.assertOwnsProperty(ownerId, propertyId);
 

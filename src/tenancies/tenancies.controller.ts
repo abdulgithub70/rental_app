@@ -17,18 +17,21 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
-// Everything here is Owner-only for now — a tenant has no login in this
-// MVP (see project notes), so rent/utility tracking is entered manually by
-// the Owner from the Rent & Utility Tracking screen.
+// A tenant still has no login in this MVP unless their Tenancy was created
+// by accepting a Deal (see DealsService.accept) — that's the only path that
+// sets tenantId, which is what the RENTER routes below rely on. Owner
+// routes remain the primary way rent/utility tracking is entered.
 @Controller('tenancies')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.OWNER)
 export class TenanciesController {
   constructor(private readonly tenanciesService: TenanciesService) {}
+
+  // ---- OWNER ----
 
   // Called when the Owner marks a property as rented — sets the property's
   // availabilityStatus to RENTED and creates the Tenancy record.
   @Post()
+  @Roles(UserRole.OWNER)
   async create(@Request() req, @Body() dto: CreateTenancyDto) {
     return this.tenanciesService.create(req.user.userId, dto);
   }
@@ -36,20 +39,40 @@ export class TenanciesController {
   // Used by the Property Detail screen to check whether a RENTED property
   // has an active tenancy to show/link to.
   @Get('property/:propertyId')
+  @Roles(UserRole.OWNER)
   async getActiveForProperty(@Request() req, @Param('propertyId') propertyId: string) {
     return this.tenanciesService.getActiveForProperty(req.user.userId, propertyId);
   }
 
-  // Rent & Utility Tracking screen — full detail with ledger + readings.
-  @Get(':id')
-  async getById(@Request() req, @Param('id') id: string) {
-    return this.tenanciesService.getById(req.user.userId, id);
-  }
-
   // Tenant moved out — property becomes AVAILABLE again, ready for the next tenancy.
   @Patch(':id/end')
+  @Roles(UserRole.OWNER)
   async end(@Request() req, @Param('id') id: string) {
     return this.tenanciesService.end(req.user.userId, id);
+  }
+
+  // ---- RENTER ----
+
+  // "My Rental" screen — list, then detail.
+  @Get('mine')
+  @Roles(UserRole.RENTER)
+  async getMine(@Request() req) {
+    return this.tenanciesService.getMineForRenter(req.user.userId);
+  }
+
+  @Get('mine/:id')
+  @Roles(UserRole.RENTER)
+  async getMineById(@Request() req, @Param('id') id: string) {
+    return this.tenanciesService.getByIdForRenter(req.user.userId, id);
+  }
+
+  // ---- OWNER (kept last so it doesn't swallow 'mine') ----
+
+  // Rent & Utility Tracking screen — full detail with ledger + readings.
+  @Get(':id')
+  @Roles(UserRole.OWNER)
+  async getById(@Request() req, @Param('id') id: string) {
+    return this.tenanciesService.getById(req.user.userId, id);
   }
 }
 
