@@ -60,6 +60,15 @@ export class UsersController {
     return this.usersService.updateStatus(id, updateStatusDto.isActive);
   }
 
+  // Field agents list for the Admin app (assigning visits).
+  // Declared before ':id' so 'agents' isn't treated as a user id.
+  @Get('agents')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  async findFieldAgents() {
+    return this.usersService.findFieldAgents();
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<UserResponseDto> {
     return this.usersService.findOne(id);

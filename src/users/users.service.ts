@@ -110,6 +110,15 @@ export class UsersService {
     return users.map((user) => this.toResponseDto(user));
   }
 
+  // Admin / Super Admin pick from this list when assigning a visit.
+  async findFieldAgents() {
+    return this.prisma.user.findMany({
+      where: { role: 'FIELD_AGENT', isActive: true },
+      select: { id: true, name: true, phone: true, coverageLocalities: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async updateStatus(id: string, isActive: boolean): Promise<UserResponseDto> {
     try {
       const user = await this.prisma.user.update({
