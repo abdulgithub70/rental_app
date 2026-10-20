@@ -14,8 +14,10 @@ const PROPERTY_SELECT = {
   address: true,
   type: true,
   monthlyRent: true,
+  securityDeposit: true,
   photoUrls: true,
   ownerId: true,
+  availabilityStatus: true,
 };
 
 const USER_SELECT = { id: true, name: true, phone: true };

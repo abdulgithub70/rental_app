@@ -50,6 +50,17 @@ export class DealsService {
       throw new BadRequestException('renterId must belong to a Renter');
     }
 
+    // The renter must have actually visited (assisted visit marked COMPLETED)
+    // — this also stops an owner from offering to an arbitrary renter id.
+    const completedVisit = await this.prisma.visitRequest.findFirst({
+      where: { propertyId: dto.propertyId, renterId: dto.renterId, status: 'COMPLETED' },
+    });
+    if (!completedVisit) {
+      throw new BadRequestException(
+        'You can only offer this property to a renter who has completed a visit to it',
+      );
+    }
+
     const existingOpenOffer = await this.prisma.deal.findFirst({
       where: { propertyId: dto.propertyId, renterId: dto.renterId, status: 'AGREEMENT' },
     });
